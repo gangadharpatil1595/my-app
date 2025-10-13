@@ -1,0 +1,22 @@
+---
+replicaCount: 1
+
+image:
+  backend:
+    repository: docker.io/gangadhar369/myapp-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: docker.io/gangadhar369/myapp-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+postgres:
+  image: postgres:15
+  user: postgres
+  password: postgres
+  database: appdb
+  persistence:
+    enabled: true
+    size: 1Gi
+

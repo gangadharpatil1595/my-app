@@ -1,0 +1,106 @@
+# -------------------------------------------------
+# ConfigMap - initialization SQL
+# -------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "myapp.fullname" . }}-postgres-init
+  labels:
+    app: postgres
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS items (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+
+---
+# -------------------------------------------------
+# Service - internal Postgres connection
+# -------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "myapp.fullname" . }}-postgres
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app: postgres
+
+---
+# -------------------------------------------------
+# StatefulSet - main Postgres database
+# -------------------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "myapp.fullname" . }}-postgres
+  labels:
+    app: postgres
+spec:
+  serviceName: {{ include "myapp.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      initContainers:
+        - name: init-schema
+          image: postgres:15
+          command:
+            - sh
+            - -c
+            - |
+              echo "Initializing database schema..."
+              until pg_isready -h localhost -p 5432 -U {{ .Values.postgres.user }}; do
+                echo "Waiting for PostgreSQL to start..."
+                sleep 2
+              done
+              PGPASSWORD={{ .Values.postgres.password }} psql -h localhost -U {{ .Values.postgres.user }} -d {{ .Values.postgres.database }} -f /init/init.sql || true
+          env:
+            - name: PGPASSWORD
+              value: {{ .Values.postgres.password }}
+          volumeMounts:
+            - name: init-sql
+              mountPath: /init
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgres.password }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: init-sql
+          configMap:
+            name: {{ include "myapp.fullname" . }}-postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.persistence.size }}
+
