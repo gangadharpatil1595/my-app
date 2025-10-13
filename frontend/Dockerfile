@@ -1,13 +1,13 @@
+# build stage
 FROM node:18-alpine as build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install --omit=dev
 COPY . .
 RUN npm run build
 
+# runtime stage
 FROM nginx:stable-alpine
 COPY --from=build /app/build /usr/share/nginx/html
-# Pass API URL at runtime via envsubst + custom nginx conf if needed
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
-
