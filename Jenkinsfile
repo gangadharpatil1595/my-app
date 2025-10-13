@@ -82,7 +82,7 @@ pipeline {
 
             git add helm-chart/values.yaml
             git commit -m "ci: update image tag to ${GIT_COMMIT}" || echo "No changes to commit"
-            git push https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_USER}/${APP_NAME}.git ${GIT_BRANCH}
+            git push https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_USER}/my-app.git HEAD:${GIT_BRANCH}
           '''
         }
       }
