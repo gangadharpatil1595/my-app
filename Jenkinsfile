@@ -1,15 +1,42 @@
 pipeline {
   agent any
 
+  options {
+    disableConcurrentBuilds()   // prevent overlapping builds
+    skipStagesAfterUnstable()   // skip next stages if any stage fails
+  }
+
   environment {
     DOCKERHUB_USER = 'gangadhar369'
-    APP_NAME = 'myapp'
-    BACKEND_REPO = "docker.io/${DOCKERHUB_USER}/${APP_NAME}-backend"
-    FRONTEND_REPO = "docker.io/${DOCKERHUB_USER}/${APP_NAME}-frontend"
-    GIT_BRANCH = 'main'
+    APP_NAME       = 'myapp'
+    BACKEND_REPO   = "docker.io/${DOCKERHUB_USER}/${APP_NAME}-backend"
+    FRONTEND_REPO  = "docker.io/${DOCKERHUB_USER}/${APP_NAME}-frontend"
+    GIT_BRANCH     = 'main'
+  }
+
+  triggers {
+    githubPush()  // trigger builds on GitHub commits
   }
 
   stages {
+    stage('Check Commit Source') {
+      steps {
+        script {
+          // Get the latest commit message
+          def commitMessage = sh(script: "git log -1 --pretty=%B", returnStdout: true).trim()
+
+          // If Jenkins committed the change itself (like "ci:" or "chore:"), stop here
+          if (commitMessage.startsWith("ci:") || commitMessage.startsWith("chore:")) {
+            echo "🚫 Skipping build — detected Jenkins auto-commit: '${commitMessage}'"
+            currentBuild.result = 'SUCCESS'
+            error("Build stopped intentionally to avoid CI loop.")
+          } else {
+            echo "✅ User commit detected: '${commitMessage}' — continuing pipeline..."
+          }
+        }
+      }
+    }
+
     stage('Checkout Code') {
       steps {
         checkout scm
@@ -66,7 +93,6 @@ pipeline {
         sh '''
           echo "📝 Updating Helm chart with new image tags..."
           sed -i "s|tag:.*|tag: \\"${GIT_COMMIT}\\"|g" helm-chart/values.yaml
-
           echo "✅ Helm chart updated with image tag ${GIT_COMMIT}"
         '''
       }
@@ -82,6 +108,7 @@ pipeline {
 
             git add helm-chart/values.yaml
             git commit -m "ci: update image tag to ${GIT_COMMIT}" || echo "No changes to commit"
+            git pull origin ${GIT_BRANCH} --rebase || true
             git push https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_USER}/my-app.git HEAD:${GIT_BRANCH}
           '''
         }
@@ -91,11 +118,10 @@ pipeline {
 
   post {
     success {
-      echo "✅ Build and push successful! ArgoCD will auto-sync and deploy new version."
+      echo "✅ Build and push successful! ArgoCD will auto-sync and deploy the new version to EKS."
     }
     failure {
-      echo "❌ Build failed! Please check the logs."
+      echo "❌ Build failed! Please check the Jenkins logs for details."
     }
   }
 }
-
