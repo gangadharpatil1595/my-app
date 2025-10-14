@@ -4,11 +4,11 @@ replicaCount: 1
 image:
   backend:
     repository: docker.io/gangadhar369/myapp-backend
-    tag: "6922019ac7c90fc4e0a5bbc601fae3249afda693"
+    tag: "aa85f7e19a9b52698771ed5d39858a484ee84fe5"
     pullPolicy: IfNotPresent
   frontend:
     repository: docker.io/gangadhar369/myapp-frontend
-    tag: "6922019ac7c90fc4e0a5bbc601fae3249afda693"
+    tag: "aa85f7e19a9b52698771ed5d39858a484ee84fe5"
     pullPolicy: IfNotPresent
 
 postgres:
